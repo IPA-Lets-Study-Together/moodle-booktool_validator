@@ -25,101 +25,173 @@
 require(dirname(__FILE__).'/../../../../config.php');
 require_once(dirname(__FILE__).'/locallib.php');
 require_once(dirname(__FILE__).'/validation_form.php');
-require_once($CFG->dirroot.'/mod/book/locallib.php');
-require_once($CFG->libdir.'/chromephp/ChromePhp.php');
 
 $cmid           = required_param('cmid', PARAM_INT);            // Course Module ID
 $chapterid      = optional_param('chapterid', 0, PARAM_INT);    // Chapter ID
 $pagenum        = optional_param('pagenum', 0, PARAM_INT);
 $subchapter     = optional_param('subchapter', 0, PARAM_BOOL);
 
+var_dump($cmid);
+
 $cm = get_coursemodule_from_id('book', $cmid, 0, false, MUST_EXIST);
-$course = $DB->get_record('course', array('id'=>$cm->course), '*', MUST_EXIST);
-$book = $DB->get_record('book', array('id'=>$cm->instance), '*', MUST_EXIST);
+
+var_dump($cm)
+$course = $DB->get_record('course', array('id'=>$cm->course), '*', MUST_EXIST); //get course data
+$book = $DB->get_record('book', array('id'=>$cm->instance), '*', MUST_EXIST);   //get book data
 
 require_course_login($course, true, $cm);
 
 $context = context_module::instance($cm->id);
 require_capability('mod/book:edit', $context);
 
-/*require_capability('mod/book:read', $context);
-require_capability('booktool/validator:validate', $context);*/
+//set page url
+$PAGE->set_url(
+    '/mod/book/tool/validator/bcindex.html', 
+    array('cmid'=>$cmid, 'chapterid'=>$chapterid)
+);
 
-//set data
-$PAGE->set_url('/mod/book/tool/validator/bcindex.html', array('cmid'=>$cmid, 'chapterid'=>$chapterid));
-$PAGE->set_pagelayout('admin'); // TODO: Something. This is a bloody hack!
+// set admin layout - This is a bloody hack!
+$PAGE->set_pagelayout('admin'); 
 
 //check if data exists in the sub-plugin table, create new data if doesn't exist
+$data_exists = $DB->record_exists(
+    'booktool_validator', 
+    array('bookid' => $book->id, 'chapterid' => $chapterid)
+);
 
-if ( !$DB->record_exists('booktool_validator', array('bookid'=>$book->id, 'chapterid'=>$chapterid)) && $chapterid != 0 ) {
+// Create data in table in case it doesn't exist. Checking $chapterid in case it isn't received as param
+if ( !$data_exists && $chapterid != 0 ) {
 
     $record = new stdClass();
 
     $record->bookid = $book->id;
     $record->chapterid = $chapterid;
 
-    if (chapter_checkvalidation($book->id, $chapterid) == 0) { //if false
+    if ( check_images($book->id, $chapterid) && check_tables($book->id, $chapterid) ) { 
+
+        /* all images have alt tags and all tables have summary tags,
+        ** set validated to 1 (TRUE) and number of faults to 0 */
         
-        $record->validated = 0;
-        $record->faults = cnt_faults($book->id, $chapterid);
-        $DB->insert_record('booktool_validator', $record, false);
-
-    } else {
-
         $record->validated = 1;
         $record->faults = 0;
         $DB->insert_record('booktool_validator', $record, false);
-    } 
 
+    } else {
+
+        /* if chapter is not validated set value to 0 (FALSE) and 
+        ** count faults */
+       
+        $record->validated = 0;
+        $record->faults = count_faults($book->id, $chapterid);
+        $DB->insert_record('booktool_validator', $record, false);
+    }
 } 
 
+// Prepare chapter which will store data
 $chapter = new stdClass();
 
 if ($chapterid) {
-    $chapter = $DB->get_record('book_chapters', array('id'=>$chapterid, 'bookid'=>$book->id), '*', MUST_EXIST);
+    $chapter = $DB->get_record(
+        'book_chapters', 
+        array('id' => $chapterid, 'bookid' => $book->id), 
+        '*', 
+        MUST_EXIST);
 }
 
-$chapter->cmid = $cm->id;
+$options = array(
+    'noclean' => true, 
+    'subdirs' => true, 
+    'maxfiles' => -1, 
+    'maxbytes' => 0, 
+    'context' => $context
+);
 
-$options = array('noclean'=>true, 'subdirs'=>true, 'maxfiles'=>-1, 'maxbytes'=>0, 'context'=>$context);
-$chapter = file_prepare_standard_editor($chapter, 'content', $options, $context, 'mod_book', 'chapter', $chapterid);
+$chapter = file_prepare_standard_editor(
+    $chapter, 
+    'content', 
+    $options, 
+    $context, 
+    'book', 
+    'chapter', 
+    $chapterid
+);
 
-$mform = new book_chapter_edit_form(null, array('chapter'=>$chapter, 'options'=>$options));
+$mform = new book_chapter_edit_form( null, array('chapter' => $chapter, 'options' => $options) );
 
-//If data submitted, process and store
+// If data is submitted, process and store
 
-if ($mform->is_cancelled()) {
-    if (empty($chapterid)) {
-        redirect($CFG->wwwroot . "/mod/book/view.php?id=$cm->id");
+if ( $mform->is_cancelled() ) {
+
+    if ( empty($chapterid) ) {
+
+        redirect($CFG->wwwroot . "/mod/book/view.php?id=".$cm->id);
     } else {
-        redirect($CFG->wwwroot . "/mod/book/view.php?id=$cm->id&chapterid=$chapter->id");
+
+        redirect($CFG->wwwroot . "/mod/book/view.php?id=".$cm->id."&chapterid=".$chapter->id);
     }
 
-} else if ($data = $mform->get_data()) {
-
-    //var_dump($data);
+} else if ( $data = $mform->get_data() ) {
         
     //store the files
     $data->timemodified = time();
-    $data = file_postupdate_standard_editor($data, 'content', $options, $context, 'mod_book', 'chapter', $data->id);
+    $data = file_postupdate_standard_editor(
+        $data, 
+        'content', 
+        $options, 
+        $context, 
+        'book', 
+        'chapter', 
+        $data->id
+    );
+
     $DB->update_record('book_chapters', $data);
     $DB->set_field('book', 'revision', $book->revision+1, array('id'=>$book->id));
 
     //check again
-    if ((chapter_checkvalidation($book->id, $data->id) == 1) 
-        && ($DB->get_field('booktool_validator', 'validated', array('bookid'=>$book->id, 'chapterid'=>$data->id), MUST_EXIST) == 0)) {
 
-        $validator_id = $DB->get_field('booktool_validator', 'id', array('bookid'=>$book->id, 'chapterid'=>$data->id));
-        $DB->set_field('booktool_validator', 'validated', 1, array('id'=>$validator_id));
-        $DB->set_field('booktool_validator', 'faults', 0, array('id'=>$validator_id));
+    $validatedvalue = $DB->get_field(
+        'booktool_validator', 
+        'validated', 
+        array('bookid'=>$book->id, 'chapterid'=>$chapterid), 
+        MUST_EXIST
+    );
+
+    if ($validatedvalue == 0 && check_images($book->id, $chapterid) && check_tables($book->id, $chapterid) ) {
+
+        $validator_id = $DB->get_field(
+            'booktool_validator', 
+            'id', 
+            array('bookid' => $book->id, 'chapterid' => $data->id)
+        );
+
+        $DB->set_field('booktool_validator', 
+            'validated', 
+            1, 
+            array('id' => $validator_id)
+        );
+
+        $DB->set_field(
+            'booktool_validator', 
+            'faults', 
+            0, 
+            array('id' => $validator_id)
+        );
 
     }
 
-    add_to_log($course->id, 'course', 'update mod', '../mod/book/view.php?id='.$cm->id, 'book '.$book->id);
+    add_to_log(
+        $course->id, 
+        'course', 
+        'update mod', 
+        '../mod/book/view.php?id='.$cm->id, 
+        'book '.$book->id
+    );
+    
     $params = array(
         'context' => $context,
         'objectid' => $data->id
     );
+
     $event = \mod_book\event\chapter_updated::create($params);
     $event->add_record_snapshot('book_chapters', $data);
     $event->trigger();  
@@ -136,7 +208,14 @@ $PAGE->set_heading($course->fullname);
 echo $OUTPUT->header();
 echo $OUTPUT->heading($book->name);
 
-if (($DB->get_field('booktool_validator', 'validated', array('bookid'=>$book->id, 'chapterid'=>$chapterid), MUST_EXIST)) == '0' ) {
+$validatedvalue = $DB->get_field(
+    'booktool_validator', 
+    'validated', 
+    array('bookid'=>$book->id, 'chapterid'=>$chapterid), 
+    MUST_EXIST
+);
+
+if ($validatedvalue == 0) {
 
         echo get_string('event_chapter_notvalidated', 'booktool_validator');
         echo get_string('nof', 'booktool_validator') . $DB->get_field('booktool_validator', 'faults', array('bookid'=>$book->id, 'chapterid'=>$chapterid));
@@ -146,6 +225,7 @@ if (($DB->get_field('booktool_validator', 'validated', array('bookid'=>$book->id
         echo "<br>";
         print_tables($book->id, $chapterid);
         $mform->display();
+
 } else {
     echo get_string('event_chapter_validated', 'booktool_validator');
 }

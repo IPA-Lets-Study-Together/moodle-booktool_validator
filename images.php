@@ -49,17 +49,24 @@ echo $OUTPUT->header();
 echo $OUTPUT->heading($book->name);
 
 //get all chapter ids
-$chapterids = $DB->get_records_sql('SELECT id FROM {book_chapters} WHERE bookid = ?', array($book->id));
+$chapterids = $DB->get_records_sql(
+	'SELECT id FROM {book_chapters} WHERE bookid = ?', 
+	array($book->id)
+);
 
 //check if every chapter exists in booktool_validator table
 foreach ($chapterids as $chapter) {
 
-    $title = $DB->get_field('book_chapters', 'title', array('id' => $chapter->id, 'bookid' => $book->id));
+    $title = $DB->get_field(
+    	'book_chapters', 
+    	'title', 
+    	array('id' => $chapter->id, 'bookid' => $book->id)
+    );
             
     echo "<hr />";
     echo "<h4>" . $title . "</h4><br>";
 
-    find_images($book->id, $chapter->id);
+    show_images($book->id, $chapter->id);
 }
 
 echo $OUTPUT->footer();

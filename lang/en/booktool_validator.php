@@ -29,7 +29,9 @@ $string['event_chapter_notvalidated'] = 'This chapter has validation problems. '
 $string['event_book_validated'] = 'There are no validation problems in this book.';
 $string['event_book_notvalidated'] = 'This book has validation problems';
 $string['validatechapter'] = 'Validate this chapter';
-$string['validatebook'] = 'Check book for validation problems';
+$string['validatebook'] = 'Validate book';
+$string['validchapter'] = 'Chapter is valid';
+$string['validbook'] = 'Book is valid';
 $string['pluginname'] = 'Book content validation';
 $string['validator:validated'] = 'validate';
 

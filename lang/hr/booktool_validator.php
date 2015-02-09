@@ -30,6 +30,8 @@ $string['event_book_validated'] = 'U knjizi nema validacijskih problema.';
 $string['event_book_notvalidated'] = 'Knjiga nije prošla validacijsku provjeru.';
 $string['validatechapter'] = 'Provjeri poglavlje';
 $string['validatebook'] = 'Provjeri knjigu';
+$string['validchapter'] = 'Poglavlje je provjereno';
+$string['validbook'] = 'Knjiga je provjerena';
 $string['pluginname'] = 'Provjera sadržaja knjige';
 $string['validator:validated'] = 'provjeri';
 

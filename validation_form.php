@@ -29,9 +29,14 @@ require_once($CFG->dirroot.'/mod/book/edit_form.php');
 
 class book_validation_edit_form extends book_chapter_edit_form {
 
+
     function definition() {		
         
+        /*$cmid = $this->_customdata['cmid'];
+        $chapterid = $this->_customdata['chapterid'];
+*/
         parent::definition();
+
     }
 
     function definition_after_data(){

@@ -34,148 +34,110 @@ function booktool_validator_extend_settings_navigation(settings_navigation $sett
 	global $PAGE, $DB;
 
 	$params = $PAGE->url->params();
-	if (empty($params['id'])) {
+
+	//if chapter is in editing mode there is no 'id' field in params
+	if (array_key_exists('cmid', $params)) {
+		$cm = get_coursemodule_from_id('book', $params['cmid'], 0, false, MUST_EXIST);
+	} elseif (array_key_exists('update', $params)) {
+		$cm = get_coursemodule_from_id('book', $params['update'], 0, false, MUST_EXIST);
+	} elseif(array_key_exists('id', $params) && !array_key_exists('cmid', $params)) {
+		$cm = get_coursemodule_from_id('book', $params['id'], 0, false, MUST_EXIST);
+	}
+		
+	if (empty($params['id']) || empty($params['chapterid'])) {
 		return;
 	}
 
-	$cm = get_coursemodule_from_id('book', $params['id'], 0, false, MUST_EXIST);
-	$course = $DB->get_record('course', array('id'=>$cm->course), '*', MUST_EXIST);
-	$book = $DB->get_record('book', array('id'=>$cm->instance), '*', MUST_EXIST);
-
-	if (empty($params['chapterid']) || $params['chapterid'] == 0) {
-		$chapters = $DB->get_records_menu(
-			'book_chapters', 
-			array('bookid'=>$book->id), 
-			'id', 
-			'id, bookid'
-			);
-
-		reset($chapters);
-		$params['chapterid'] = key($chapters);
-	}
-
 	if (has_capability('booktool/validator:validate', $PAGE->cm->context)) {
+		
+		$string1 = get_string('validatebook', 'booktool_validator');
+		$string2 = get_string('validatechapter', 'booktool_validator');
 
-		$recordexists = $DB->record_exists(
-			'booktool_validator', 
-			array('bookid' => $book->id, 'chapterid' => $params['chapterid'])
+		$navigation_node = navigation_node::TYPE_SETTING;
+
+		$url1 = new moodle_url(
+			'/mod/book/tool/validator/book.php', 
+			array('id' => $params['id'])
+			);
+		$url2 = new moodle_url(
+			'/mod/book/tool/validator/chapter.php', 
+			array('id' => $params['id'], 'chapterid' => $params['chapterid'])
+		);
+
+		//to avoid else case
+		$isvalid = 0;
+		$timevalidated = 0;
+		$timemodified = 1;
+
+		if ($DB->record_exists('book_validator', array('bookid' => $cm->instance)) ) {
+			
+			$isvalid = $DB->get_field(
+				'book_validator', 
+				'is_valid', 
+				array('bookid' => $cm->instance), 
+				MUST_EXIST
 			);
 
-		if ($recordexists) {
-
- 			//if record exists in table extract validated field
-			$validated = $DB->get_field(
-				'booktool_validator', 
-				'validated', 
-				array('bookid' => $book->id, 'chapterid' => $params['chapterid']), 
+			$timevalidated = $DB->get_field(
+				'book_validator', 
+				'timevalidated', 
+				array('bookid' => $cm->instance), 
 				MUST_EXIST
-				);
+			);
 
-			switch ($validated) {
-				case '0':
-				$url1 = new moodle_url(
-					'/mod/book/tool/validator/bindex.php', 
-					array('id' => $params['id'])
-					);
-				$node->add(
-					get_string('validatebook', 'booktool_validator'), 
-					$url1, 
-					navigation_node::TYPE_SETTING, 
-					null, 
-					null, 
-					new pix_icon('validator', '', 'booktool_validator', array('class' => 'icon'))
-					);
+			$timemodified = $DB->get_field(
+				'book', 
+				'timemodified', 
+				array('id' => $cm->instance), 
+				MUST_EXIST
+			);
+		}
 
-				$url2 = new moodle_url(
-					'/mod/book/tool/validator/bcindex.php', 
-					array('cmid' => $params['id'], 'chapterid' => $params['chapterid'])
-					);
-				$node->add(
-					get_string('validatechapter', 'booktool_validator'), 
-					$url2, 
-					navigation_node::TYPE_SETTING, 
-					null, 
-					null, 
-					new pix_icon('validator', '', 'booktool_validator', array('class'=>'icon'))
-					);
-				break;
-				
-				case '1':
-					// case 1 is when chapter is validated
-				$node->add(
-					get_string('validatebook', 'booktool_validator'), 
-					null, 
-					navigation_node::TYPE_SETTING, 
-					null, 
-					null, 
-					new pix_icon('validator_gray', '', 'booktool_validator', array('class'=>'icon'))
-					);
-				$node->add(
-					get_string('validatechapter', 'booktool_validator'), 
-					null, 
-					navigation_node::TYPE_SETTING, 
-					null, 
-					null, 
-					new pix_icon('validator_gray', '', 'booktool_validator', array('class'=>'icon'))
-					);
-				break;
-			}
+		if ($isvalid == 1 && ($timevalidated > $timemodified)) {
+			// if time of validation is greather than time of modification that means that book wasn't
+			// altered after validation
+
+			$pixicon = new pix_icon('valid', '', 'booktool_validator', array('class'=>'icon'));
+
+			$node->add(
+				get_string('validchapter', 'booktool_validator'), 
+				null, 
+				$navigation_node, 
+				null, 
+				null, 
+				$pixicon
+			);
+
+			$node->add(
+				get_string('validbook', 'booktool_validator'), 
+				null, 
+				$navigation_node, 
+				null, 
+				null, 
+				$pixicon
+			);
 
 		} else {
 
-			$url1 = new moodle_url(
-				'/mod/book/tool/validator/bindex.php', 
-				array('id' => $params['id'])
-				);
+			$pixicon = new pix_icon('validate', '', 'booktool_validator', array('class'=>'icon'));
+
 			$node->add(
-				get_string('validatebook', 'booktool_validator'), 
+				$string1, 
 				$url1, 
-				navigation_node::TYPE_SETTING, 
+				$navigation_node, 
 				null, 
 				null, 
-				new pix_icon('validator', '', 'booktool_validator', array('class' => 'icon'))
-				);
+				$pixicon
+			);
 
-			$url2 = new moodle_url(
-				'/mod/book/tool/validator/bcindex.php', 
-				array('cmid' => $params['id'], 'chapterid' => $params['chapterid'])
-				);
 			$node->add(
-				get_string('validatechapter', 'booktool_validator'), 
+				$string2, 
 				$url2, 
-				navigation_node::TYPE_SETTING, 
+				$navigation_node, 
 				null, 
 				null, 
-				new pix_icon('validator', '', 'booktool_validator', array('class'=>'icon'))
-				);
+				$pixicon
+			);
 		}
-
-		//nodes for checking images and tables
-
-		$url_img = new moodle_url(
-			'/mod/book/tool/validator/images.php', 
-			array('id'=>$params['id'])
-		);
-		$node->add(
-			get_string('check_img', 'booktool_validator'), 
-			$url_img, 
-			navigation_node::TYPE_SETTING, 
-			null, 
-			null, 
-			new pix_icon('image', '', 'booktool_validator', array('class'=>'icon'))
-		);
-
-		$url_table = new moodle_url(
-			'/mod/book/tool/validator/tables.php', 
-			array('id'=>$params['id'])
-		);
-		$node->add(
-			get_string('check_table', 'booktool_validator'), 
-			$url_table, 
-			navigation_node::TYPE_SETTING, 
-			null, 
-			null, 
-			new pix_icon('table', '', 'booktool_validator', array('class'=>'icon'))
-		);
 	}
 }

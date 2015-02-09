@@ -27,7 +27,6 @@ require_once(dirname(__FILE__).'/locallib.php');
 require_once(dirname(__FILE__).'/validation_form.php');
 
 global $DB;
-$DB->set_debug(true);
 
 // if user canceled form
 if (isset($_REQUEST['cancel'])) redirect($CFG->wwwroot . "/mod/book/view.php?id=".$_REQUEST['cmid']);
@@ -56,17 +55,15 @@ if (!$chapterid || $chapterid == 0) {
         'id', 
         array('bookid' => $book->id), 
         IGNORE_MULTIPLE
-    );
+        );
 }
-
-var_dump($book);
 
 $chapter = $DB->get_record(
     'book_chapters', 
     array('id' => $chapterid, 'bookid' => $book->id), 
     '*', 
     MUST_EXIST
-);
+    );
 
 $chapter->cmid = $cm->id;
 
@@ -104,8 +101,6 @@ if (!$DB->record_exists('book_validator', array('bookid' => $book->id))) {
         $record->faults = count_faults($book->id, $id->id);
         $record->timevalidated = time();
 
-        var_dump($record);
-
         $DB->insert_record('book_chapters_validator', $record, false);
 
         if ($record->faults == 0) {
@@ -125,15 +120,8 @@ if (!$DB->record_exists('book_validator', array('bookid' => $book->id))) {
     }
     $record->timevalidated = time();
 
-    var_dump($record);
     $DB->insert_record('book_validator', $record, false);
 }
-
-$PAGE->set_title($book->name);
-$PAGE->set_heading($course->fullname);
-
-echo $OUTPUT->header();
-echo $OUTPUT->heading($book->name);
 
 if (count_faults($book->id, $chapterid) != 0) {
 
@@ -184,48 +172,56 @@ if (count_faults($book->id, $chapterid) != 0) {
             'book', 
             'revision', 
             $book->revision+1, 
-            array('id' => $bookid)
+            array('id' => $book->id)
             );
 
-        //check again after submission
-        if (count_faults($book->id, $chapterid) == 0) {
+        //check again for faults after submission
+        $record = $DB->get_record(
+            'book_chapters_validator', 
+            array('bookid' => $book->id, 'chapterid' => $chapterid),
+            '*',
+            MUST_EXIST
+            );
 
-            $record = $DB->get_record(
-                'book_chapters_validator', 
-                array('id' => $data->id),
-                '*',
-                MUST_EXIST
-                );
-
+        if (count_faults($book->id, $chapterid) == 0)
             $record->faults = 0;
-            $record->timevalidated = time();
+        else
+            $record->faults = count_faults($book->id, $chapterid);
 
-            $DB->update_record('book_chapters_validator', $record, false);
+        $record->timevalidated = time();
 
-            unset($record);
+        $DB->update_record('book_chapters_validator', $record, false);
 
-            $record = $DB->get_record(
-                'book_validator', 
-                array('bookid' => $book->id).
-                '*',
-                MUST_EXIST
-                );
+        unset($record);
 
-            $validchapters = $DB->count_records(
-                'book_chapters_validator', 
-                array('bookid' => $book->id, 'faults' => 0)
-                );
+        $record = $DB->get_record(
+            'book_validator', 
+            array('bookid' => $book->id),
+            '*',
+            MUST_EXIST
+            );
 
-            var_dump($validchapters);
+        $validchapters = $DB->count_records(
+            'book_chapters_validator', 
+            array('bookid' => $book->id, 'faults' => 0)
+            );
 
-            if ($validchapters == $chaptersnumber)
-                $record->is_valid = 1;
+        $chaptersnumber = $DB->count_records_select(
+            'book_chapters', 
+            'bookid = ?',
+            array('bookid' => $book->id),
+            "COUNT('id')"
+            );
 
-            $record->timevalidated = time();
+        if ($validchapters == $chaptersnumber)
+            $record->is_valid = 1;
+        else
+            $record->is_valid = 0;
 
-            $DB->update_record('book_validator', $record, false);
+        $record->timevalidated = time();
 
-        }
+        $DB->update_record('book_validator', $record, false);
+
 
         add_to_log(
             $course->id, 
@@ -247,20 +243,26 @@ if (count_faults($book->id, $chapterid) != 0) {
         redirect($CFG->wwwroot . "/mod/book/view.php?id=$id");
     }
 
-echo get_string('event_chapter_notvalidated', 'booktool_validator');
-echo get_string('nof', 'booktool_validator') 
+    $PAGE->set_title($book->name);
+    $PAGE->set_heading($course->fullname);
+
+    echo $OUTPUT->header();
+    echo $OUTPUT->heading($book->name);
+
+    echo get_string('event_chapter_notvalidated', 'booktool_validator');
+    echo get_string('nof', 'booktool_validator') 
     . $DB->get_field(
         'book_chapters_validator', 
         'faults', 
         array('bookid' => $book->id, 'chapterid' => $chapterid)
-    );
-echo "<br>";
+        );
+    echo "<br>";
 
-show_images($book->id, $chapterid, $context->id);
-echo "<br>";
-show_tables($book->id, $chapterid);
+    show_images($book->id, $chapterid, $context->id);
+    echo "<br>";
+    show_tables($book->id, $chapterid);
 
-$mform->display();
+    $mform->display();
 } else {
     echo get_string('event_chapter_validated', 'booktool_validator');
 }

@@ -28,64 +28,6 @@ require_once(dirname(__FILE__).'/lib.php');
 require_once($CFG->libdir.'/filelib.php');
 require_once($CFG->dirroot.'/mod/book/edit_form.php');
 
-
-/**
- * Function checks if all book chapters are present in booktool_validation table and marked as
- * valid (all images have alt attribute and all tables have summary attribute)
- * 
- * @param  	int field id from $book stdObject
- * @return 	bool
- */
- function is_validated($bookid) {
-
- 	global $DB;
-
- 	if (!$DB->record_exists('booktool_validator', array('bookid' => $bookid), IGNORE_MULTIPLE)) {
- 		return false;
- 		exit;
- 	}
-
- 	$isvalidated = false;
-
- 	$cnttrue = 0;
- 	$cntfalse = 0;
-
- 	$sql = "SELECT bc.id 
- 		FROM {book_chapters} bc
- 		JOIN {book} b ON b.id = bc.bookid
- 		WHERE b.id = ?";
-
- 	$chapterids = $DB->get_record_sql($sql, $bookid);
-
- 	foreach ($chapterids as $chapterid) {
-
- 		if ($DB->record_exists('booktool_validator', array('bookid' => $bookid, 'chapterid' => $chapterid))) {
- 			
- 			$validated = $DB->get_field(
- 				'booktool_validator', 
- 				'validated', 
- 				array('bookid' => $bookid, 'chapterid' => $chapterid), 
- 				MUST_EXIST
- 			);
- 			
- 			if ($validated == 1) {
- 				$cnttrue ++;
- 			} else {
- 				$cntfalse ++;
- 			}
-
- 		} else {
- 			return false;
- 		}
-
- 		if ($cntfalse > 0) {
- 			return false;
- 		} else {
- 			return true;
- 		}	
- 	}
- }
-
 /**
  * Function checks if all images in book chapter have alt attribute
  * 
@@ -102,6 +44,15 @@ require_once($CFG->dirroot.'/mod/book/edit_form.php');
  		array('id' => $chapterid, 'bookid' => $bookid),
  		MUST_EXIST
  	);
+
+ 	$query = file_rewrite_pluginfile_urls(
+		$query, 
+		'pluginfile.php', 
+		$contextid, 
+		'mod_book', 
+		'chapter', 
+		$chapterid
+	);
 
  	$chapter = new DOMDocument('ISO-8859-1');
  	$chapter->loadHTML($query);
@@ -197,7 +148,7 @@ function count_faults($bookid, $chapterid) {
 	
 		$summ = $tablenode->getAttribute('summary');
 
-		if (!empty($summ)) {
+		if (empty($summ)) {
 			$nosumm ++;
 		} 
 	}
@@ -207,7 +158,7 @@ function count_faults($bookid, $chapterid) {
 		
 		$alt = $imgnode->getAttribute('alt');
 
-		if (!empty($alt)) {
+		if (empty($alt)) {
 			$noalt ++;
 		}
 	}
@@ -239,10 +190,11 @@ function chapter_getname($book, $chapterid) {
 }
 
 /**
- * Finds and prints images that lack alt attribute for given arguments
+ * Finds and shows images that lack alt attribute for given arguments
  *
- * @param  	stdClass $book->id
- * @param 	$chapterid
+ * @param  	int id of Book
+ * @param 	int id of Chapter
+ * @param 	int 
  * @return 	
  */
 function print_images($bookid, $chapterid) {
@@ -305,27 +257,115 @@ function show_tables($bookid, $chapterid) {
  * @param 	int $chapterid
  * @return 	
  */
-function show_images($bookid, $chapterid) {
+function show_images($bookid, $chapterid, $contextid) {
 	global $DB;
 
-	$query = $DB->get_field(
+	$content = $DB->get_field(
 		'book_chapters', 
 		'content', 
 		array('id' => $chapterid, 'bookid' => $bookid)
 	);
+
+	$content = file_rewrite_pluginfile_urls(
+		$content, 
+		'pluginfile.php', 
+		$contextid, 
+		'mod_book', 
+		'chapter', 
+		$chapterid
+	);
 	
 	$chapter = new DOMDocument('ISO-8859-1');
-	$chapter->loadHTML($query);
+	$chapter->loadHTML($content);
+
+	$images = new DOMDocument('ISO-8859-1');	
 
 	foreach( $chapter->getElementsByTagName('img') as $imgnode ) {
 	
 		$alt = $imgnode->getAttribute('alt');
 
-		if (!empty($alt) ) {
-			$output = get_string('image', 'booktool_validator');
+		if (empty($alt) ) {
+			$imgnode = $images->importNode($imgnode, true);
+			$images->appendChild($imgnode);
+
+			/*$output = get_string('image', 'booktool_validator');
 			$output .= '<br>'. $alt->saveXML().'<br>';
 
-			echo $output;
+			echo $output;*/
 		}
 	}
+
+	echo $images->saveHTML();
+}
+
+function book_preload_chapters($book) {
+    global $DB;
+    $chapters = $DB->get_records('book_chapters', array('bookid'=>$book->id), 'pagenum', 'id, pagenum, subchapter, title, hidden');
+    if (!$chapters) {
+        return array();
+    }
+
+    $prev = null;
+    $prevsub = null;
+
+    $first = true;
+    $hidesub = true;
+    $parent = null;
+    $pagenum = 0; // chapter sort
+    $i = 0;       // main chapter num
+    $j = 0;       // subchapter num
+    foreach ($chapters as $id => $ch) {
+        $oldch = clone($ch);
+        $pagenum++;
+        $ch->pagenum = $pagenum;
+        if ($first) {
+            // book can not start with a subchapter
+            $ch->subchapter = 0;
+            $first = false;
+        }
+        if (!$ch->subchapter) {
+            if ($ch->hidden) {
+                if ($book->numbering == BOOK_NUM_NUMBERS) {
+                    $ch->number = 'x';
+                } else {
+                    $ch->number = null;
+                }
+            } else {
+                $i++;
+                $ch->number = $i;
+            }
+            $j = 0;
+            $prevsub = null;
+            $hidesub = $ch->hidden;
+            $parent = $ch->id;
+            $ch->parent = null;
+            $ch->subchapters = array();
+        } else {
+            $ch->parent = $parent;
+            $ch->subchapters = null;
+            $chapters[$parent]->subchapters[$ch->id] = $ch->id;
+            if ($hidesub) {
+                // all subchapters in hidden chapter must be hidden too
+                $ch->hidden = 1;
+            }
+            if ($ch->hidden) {
+                if ($book->numbering == BOOK_NUM_NUMBERS) {
+                    $ch->number = 'x';
+                } else {
+                    $ch->number = null;
+                }
+            } else {
+                $j++;
+                $ch->number = $j;
+            }
+        }
+
+        if ($oldch->subchapter != $ch->subchapter or $oldch->pagenum != $ch->pagenum or $oldch->hidden != $ch->hidden) {
+            // update only if something changed
+            $DB->update_record('book_chapters', $ch);
+        }
+        $chapters[$id] = $ch;
+    }
+
+    return $chapters;
 }

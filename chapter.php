@@ -125,6 +125,13 @@ if (!$DB->record_exists('book_validator', array('bookid' => $book->id))) {
 
 if (count_faults($book->id, $chapterid) != 0) {
 
+    $DB->set_field(
+        'book_chapters_validator', 
+        'faults', 
+        count_faults($book->id, $chapterid), 
+        array('bookid' => $book->id, 'chapterid' => $chapterid)
+    );
+
     $options = array(
         'noclean'=>true, 
         'subdirs'=>true, 
@@ -132,6 +139,7 @@ if (count_faults($book->id, $chapterid) != 0) {
         'maxbytes'=>0, 
         'context'=>$context
         );
+
     $chapter = file_prepare_standard_editor(
         $chapter, 
         'content', 
@@ -183,11 +191,12 @@ if (count_faults($book->id, $chapterid) != 0) {
             MUST_EXIST
             );
 
-        if (count_faults($book->id, $chapterid) == 0)
-            $record->faults = 0;
-        else
+        if (count_faults($book->id, $chapterid) != 0) {
             $record->faults = count_faults($book->id, $chapterid);
-
+        } else {
+            $record->faults = 0;
+        }
+        
         $record->timevalidated = time();
 
         $DB->update_record('book_chapters_validator', $record, false);
@@ -221,7 +230,6 @@ if (count_faults($book->id, $chapterid) != 0) {
         $record->timevalidated = time();
 
         $DB->update_record('book_validator', $record, false);
-
 
         add_to_log(
             $course->id, 
@@ -263,7 +271,14 @@ if (count_faults($book->id, $chapterid) != 0) {
     show_tables($book->id, $chapterid);
 
     $mform->display();
+
 } else {
+    $PAGE->set_title($book->name);
+    $PAGE->set_heading($course->fullname);
+
+    echo $OUTPUT->header();
+    echo $OUTPUT->heading($book->name);
+
     echo get_string('event_chapter_validated', 'booktool_validator');
 }
 

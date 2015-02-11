@@ -114,9 +114,9 @@ if (!$DB->record_exists('book_validator', array('bookid' => $book->id))) {
     $record->bookid = $book->id;
     
     if ($validchapters == $chaptersnumber) {
-        $record->is_valid = 1;
+        $record->isvalid = 1;
     } else {
-        $record->is_valid = 0;
+        $record->isvalid = 0;
     }
     $record->timevalidated = time();
 
@@ -223,9 +223,9 @@ if (count_faults($book->id, $chapterid) != 0) {
             );
 
         if ($validchapters == $chaptersnumber)
-            $record->is_valid = 1;
+            $record->isvalid = 1;
         else
-            $record->is_valid = 0;
+            $record->isvalid = 0;
 
         $record->timevalidated = time();
 

@@ -101,7 +101,7 @@ function booktool_validator_extend_settings_navigation(settings_navigation $sett
 			
 			$isvalid = $DB->get_field(
 				'book_validator', 
-				'is_valid', 
+				'isvalid', 
 				array('bookid' => $cm->instance), 
 				MUST_EXIST
 			);

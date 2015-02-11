@@ -88,9 +88,9 @@ if (!$bookexists) {
     $record->bookid = $book->id;
 
     if ($validchapters == $chaptersnumber) {
-        $record->is_valid = 1;
+        $record->isvalid = 1;
     } else {
-        $record->is_valid = 0;
+        $record->isvalid = 0;
     }
 
     $record->timevalidated = time();

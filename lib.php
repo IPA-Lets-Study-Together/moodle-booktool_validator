@@ -49,7 +49,35 @@ function booktool_validator_extend_settings_navigation(settings_navigation $sett
 	}
 
 	if (has_capability('booktool/validator:validate', $PAGE->cm->context)) {
-		
+
+		//check images and tables
+		$url_img = new moodle_url(
+ 			'/mod/book/tool/validator/images.php', 
+ 			array('id'=>$params['id'])
+ 		);
+ 		$node->add(
+ 			get_string('check_img', 'booktool_validator'), 
+ 			$url_img, 
+ 			navigation_node::TYPE_SETTING, 
+ 			null, 
+ 			null, 
+ 			new pix_icon('image', '', 'booktool_validator', array('class'=>'icon'))
+ 		);
+ 		
+ 		$url_table = new moodle_url(
+ 			'/mod/book/tool/validator/tables.php', 
+ 			array('id'=>$params['id'])
+ 		);
+ 		$node->add(
+ 			get_string('check_table', 'booktool_validator'), 
+ 			$url_table, 
+ 			navigation_node::TYPE_SETTING, 
+ 			null, 
+ 			null, 
+ 			new pix_icon('table', '', 'booktool_validator', array('class'=>'icon'))
+ 		);
+
+		//validator		
 		$string1 = get_string('validatebook', 'booktool_validator');
 		$string2 = get_string('validatechapter', 'booktool_validator');
 

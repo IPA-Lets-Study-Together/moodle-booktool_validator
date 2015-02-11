@@ -66,7 +66,7 @@ foreach ($chapterids as $chapter) {
     echo "<hr />";
     echo "<h4>" . $title . "</h4><br>";
 
-    show_images($book->id, $chapter->id);
+    find_images($book->id, $chapter->id, $context->id);
 }
 
 echo $OUTPUT->footer();

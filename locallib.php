@@ -29,24 +29,26 @@ require_once($CFG->libdir.'/filelib.php');
 require_once($CFG->dirroot.'/mod/book/edit_form.php');
 
 /**
- * Function checks if all images in book chapter have alt attribute
+ * Function finds and displays all images in given Book chapter
  * 
- * @param  	int field id from $book stdObject
- * @param 	int field id from $chapter stdObject
- * @return 	bool
+ * @param  	int $bookid id property stdClass $book book object
+ * @param 	int $chapterid id property stdClass $chapter book chapter object
+ * @param 	int $contextid id property stdClass $context context object
+ * @return 	
  */
- function check_images($bookid, $chapterid) {
+ function find_images($bookid, $chapterid, $contextid) {
+ 	
  	global $DB;
 
- 	$query = $DB->get_field(
+ 	$content = $DB->get_field(
  		'book_chapters', 
  		'content', 
  		array('id' => $chapterid, 'bookid' => $bookid),
  		MUST_EXIST
  	);
 
- 	$query = file_rewrite_pluginfile_urls(
-		$query, 
+ 	$content = file_rewrite_pluginfile_urls(
+		$content, 
 		'pluginfile.php', 
 		$contextid, 
 		'mod_book', 
@@ -55,68 +57,86 @@ require_once($CFG->dirroot.'/mod/book/edit_form.php');
 	);
 
  	$chapter = new DOMDocument('ISO-8859-1');
- 	$chapter->loadHTML($query);
+ 	$chapter->loadHTML($content);
 
- 	$truecnt = 0;
- 	$falsecnt = 0;
+ 	$output = new DOMDocument('ISO-8859-1');
 
  	foreach( $chapter->getElementsByTagName('img') as $imgnode ) {
-		
-		$alt = $imgnode->getAttribute('alt');
 
-		if (!empty($alt)) {
-			$falsecnt ++;
-		} else {
-			$truecnt ++;
-		}
+ 		if (!empty($imgnode)) {
+
+ 			$imgnode = $output->importNode($imgnode, true);
+			$output->appendChild($imgnode);
+
+			$alt = $imgnode->getAttribute('alt');
+
+			if (empty($alt)) {
+				$txt = $output->createElement('div', get_string('image', 'booktool_validator')); 
+				$output->appendChild($txt);
+			} else {
+				$txt = $output->createElement('div',$alt); 
+				$output->appendChild($txt);
+
+			}
+ 		} else {
+ 			$txt = $output->createElement('div', get_string('no_images', 'booktool_validator')); 
+			$output->appendChild($txt);
+ 		}
+ 		
 	}
 
-	if ($falsecnt > 0) {
-		return false;
-	} else {
-		return true;
-	}
+	echo $output->saveHTML();
  }
 
 /**
 * Function checks if all tables in book chapter have summary attribute
 * 
-* @param  	int field id from $book stdObject
-* @param 	int field id from $chapter stdObject
+* @param  	int $bookid id property stdClass $book book object
+* @param 	int $chapterid id property stdClass $chapter book chapter object
 * @return 	bool
 */
-function check_tables($bookid, $chapterid) {
+function find_tables($bookid, $chapterid) {
+	
 	global $DB;
 
-	$query = $DB->get_field(
-		'book_chapters', 
-		'content', 
-		array('id' => $chapterid, 'bookid' => $bookid),
-		MUST_EXIST
-	);
+	$content = $DB->get_field(
+ 		'book_chapters', 
+ 		'content', 
+ 		array('id' => $chapterid, 'bookid' => $bookid),
+ 		MUST_EXIST
+ 	);
 
-	$chapter = new DOMDocument('ISO-8859-1');
-	$chapter->loadHTML($query);
+ 	$chapter = new DOMDocument('ISO-8859-1');
+ 	$chapter->loadHTML($content);
 
-	$truecnt = 0;
-	$falsecnt = 0;
+ 	$output = new DOMDocument('ISO-8859-1');
 
-	foreach( $chapter->getElementsByTagName('table') as $tablenode ) {
+ 	foreach( $chapter->getElementsByTagName('table') as $tablenode ) {
+
+ 		if (!empty($tablenode)) {
+
+ 			$tablenode = $output->importNode($tablenode, true);
+			$output->appendChild($tablenode);
+
+			$summ = $tablenode->getAttribute('summary');
+
+			if (empty($summ)) {
+				$txt = get_string('table', 'booktool_validator');
+				$txt = $output->createElement('div', $txt); 
+				$output->appendChild($txt);
+			} else {
+				$txt = $output->createElement('div',$summ); 
+				$output->appendChild($txt);
+
+			}
+ 		} else {
+ 			$txt = $output->createElement('div', get_string('no_tables', 'booktool_validator')); 
+			$output->appendChild($txt);
+ 		}
 	
-		$summ = $tablenode->getAttribute('summary');
-
-		if (!empty($summ)) {
-			$falsecnt ++;
-		} else {
-			$truecnt ++;
-		}
 	}
 
-	if ($falsecnt > 0) {
-		return false;
-	} else {
-		return true;
-	}
+	echo $output->saveHTML();
 }
 
 /**
@@ -153,7 +173,7 @@ function count_faults($bookid, $chapterid) {
 		} 
 	}
 
-	// Count how many images doesn't have alt attribute
+	// Count how many images don't have alt attribute
 	foreach( $chapter->getElementsByTagName('img') as $imgnode ) {
 		
 		$alt = $imgnode->getAttribute('alt');
@@ -190,35 +210,6 @@ function chapter_getname($book, $chapterid) {
 }
 
 /**
- * Finds and shows images that lack alt attribute for given arguments
- *
- * @param  	int id of Book
- * @param 	int id of Chapter
- * @param 	int 
- * @return 	
- */
-function print_images($bookid, $chapterid) {
-
-	global $DB;
-
-	$query = $DB->get_field('book_chapters', 'content', array('id'=>$chapterid, 'bookid'=>$bookid));
-	$content = serialize($query);
-
-	$alt_pat = '/<img(\s*(?!alt)([\w\-])+=([\"])[^\"]+\3)*\s*\/?>/i';;
-	preg_match_all($alt_pat, $content, $img_alt_pregmatch);
-
-	if (count($img_alt_pregmatch[0]) != 0) {
-		
-		echo get_string('image','booktool_validator');
-		echo "<br> <br>";
-
-		foreach($img_alt_pregmatch[0] as $print) {
-   		echo $print . "<br>";
-		}
-	}		
-}
-
-/**
  * Function find and show tables that have no summary attribute
  *
  * @param  	int $book->id
@@ -237,17 +228,19 @@ function show_tables($bookid, $chapterid) {
 	$chapter = new DOMDocument('ISO-8859-1');
 	$chapter->loadHTML($query);
 
+	$tables = new DOMDocument('ISO-8859-1');
+
 	foreach( $chapter->getElementsByTagName('table') as $tablenode ) {
 	
 		$summ = $tablenode->getAttribute('summary');
 
-		if (!empty($summ) ) {
-			$output = get_string('table', 'booktool_validator');
-			$output .= '<br>'. $summ->saveXML().'<br>';
-
-			echo $output;
+		if (empty($summ) ) {
+			$tablenode = $tables->importNode($tablenode, true);
+			$tables->appendChild($tablenode);
 		}
 	}
+
+	echo $tables->saveHTML();
 }
 
 /**
@@ -284,14 +277,9 @@ function show_images($bookid, $chapterid, $contextid) {
 	
 		$alt = $imgnode->getAttribute('alt');
 
-		if (empty($alt) ) {
+		if (empty($alt)) {
 			$imgnode = $images->importNode($imgnode, true);
 			$images->appendChild($imgnode);
-
-			/*$output = get_string('image', 'booktool_validator');
-			$output .= '<br>'. $alt->saveXML().'<br>';
-
-			echo $output;*/
 		}
 	}
 

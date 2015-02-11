@@ -73,7 +73,7 @@ if (!$bookexists) {
         $record->faults = count_faults($book->id, $id->id);
         $record->timevalidated = time();
 
-        $DB->update_record('book_chapters_validator', $record, false);
+        $DB->insert_record('book_chapters_validator', $record, false);
     }
 
     $validchapters = $DB->count_records(
@@ -95,7 +95,7 @@ if (!$bookexists) {
 
     $record->timevalidated = time();
 
-    $DB->update_record('book_validator', $record, false);
+    $DB->insert_record('book_validator', $record, false);
 
 } else {
 
@@ -107,8 +107,8 @@ if (!$bookexists) {
     foreach ($chapterids as $id) {
         
         $chapterexists = $DB->record_exists(
-            'book_validator',
-            array('bookid' => $book->id)
+            'book_chapters_validator',
+            array('bookid' => $book->id, 'chapterid' => $id->id)
         );
 
         if (!$chapterexists) {
@@ -120,7 +120,7 @@ if (!$bookexists) {
             $record->faults = count_faults($book->id, $id->id);
             $record->timevalidated = time();
 
-            $DB->update_record('book_chapters_validator', $record, false);
+            $DB->insert_record('book_chapters_validator', $record, false);
         }
     }
 }

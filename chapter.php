@@ -154,8 +154,6 @@ if (count_faults($book->id, $chapterid) != 0) {
         null, 
         array('chapter'=>$chapter, 'options'=>$options)
         );
-
-    //If data submitted, process and store
     
     if ($mform->is_cancelled()) {
 

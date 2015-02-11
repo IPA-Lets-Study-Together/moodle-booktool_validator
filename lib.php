@@ -106,22 +106,24 @@ function booktool_validator_extend_settings_navigation(settings_navigation $sett
 				MUST_EXIST
 			);
 
-			$timevalidated = $DB->get_field(
-				'book_validator', 
-				'timevalidated', 
+			$sql = 'SELECT MAX(timevalidated) FROM {book_chapters_validator} where bookid = ?';
+			$timevalidated = $DB->get_field_sql(
+				$sql, 
 				array('bookid' => $cm->instance), 
 				MUST_EXIST
 			);
 
-			$timemodified = $DB->get_field(
-				'book', 
-				'timemodified', 
-				array('id' => $cm->instance), 
+			$sql = 'SELECT MAX(timemodified) FROM {book_chapters} where bookid = ?';
+
+			$timemodified = $DB->get_field_sql(
+				$sql,
+				array('bookid' => $cm->instance), 
 				MUST_EXIST
 			);
+
 		}
 
-		if ($isvalid == 1 && ($timevalidated > $timemodified)) {
+		if ($isvalid == 1 && ($timevalidated >= $timemodified)) {
 			// if time of validation is greather than time of modification that means that book wasn't
 			// altered after validation
 
